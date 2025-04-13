@@ -6,8 +6,13 @@ public static class Api
 {
 	private static readonly HttpClient Client = new HttpClient();
 
-	public static async Task<HttpResponseMessage> Get(string url)
+	public static async Task<HttpResponseMessage> Get(string url, string? apiKey = null)
 	{
+		if (string.IsNullOrWhiteSpace(url))
+			throw new ArgumentNullException(nameof(url));
+		if (apiKey != null)
+			Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
 		return await Client.GetAsync(url);
 	}
 

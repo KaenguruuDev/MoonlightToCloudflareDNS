@@ -4,20 +4,14 @@ namespace MoonlightToCloudflareDNS;
 
 class Program
 {
-	private static readonly Dictionary<string, string?> Configuration = new()
-	{
-		{ "CLOUDFLAREAPIKEY", null },
-		{ "CLOUDFLAREZONEID", null },
-		{ "MOONLIGHTAPIKEY", null },
-		{ "MOONLIGHTPANELURL", null },
-	};
+	private static bool _isMoonlight;
 
-	// Usage: ./MlCloudDNS path/to/.env
-	static async Task Main(string[] args)
+	// Usage: ./MTCF path/to/.env moonlight/cloudflare
+	private static async Task Main(string[] args)
 	{
-		if (args.Length < 1)
+		if (args.Length < 2)
 		{
-			await Logging.Log(LogSeverity.Error, "Init", "No environment file specified.");
+			await Logging.Log(LogSeverity.Error, "Init", "Missing configuration file or application mode.");
 			return;
 		}
 
@@ -27,7 +21,30 @@ class Program
 			return;
 		}
 
-		var lines = File.ReadAllLines(args[0]);
+		if (args[1] != "cloudflare" && args[1] != "moonlight")
+		{
+			await Logging.Log(LogSeverity.Error, "Init",
+				$"Mode '{args[1]}' not supported. Use 'moonlight' or 'cloudflare'");
+			return;
+		}
+
+		var configuration = new Dictionary<string, string?>();
+
+		if (args[1] == "cloudflare")
+		{
+			configuration["CLOUDFLAREAPIKEY"] = null;
+			configuration["CLOUDFLAREZONEID"] = null;
+			configuration["MOONLIGHTAPIKEY"] = null;
+			configuration["MOONLIGHTAPIURL"] = null;
+			_isMoonlight = false;
+		}
+		else
+		{
+			configuration["MOONLIGHTAPIKEY"] = null;
+			_isMoonlight = true;
+		}
+
+		var lines = await File.ReadAllLinesAsync(args[0]);
 		foreach (var line in lines)
 		{
 			var identifier = line.Split("=").FirstOrDefault();
@@ -36,24 +53,26 @@ class Program
 			if (identifier == null || value == null)
 				continue;
 
-			if (!Configuration.ContainsKey(identifier))
+			if (!configuration.ContainsKey(identifier))
 				continue;
 
-			Configuration[identifier] = value;
+			configuration[identifier] = value;
 		}
 
-		if (Configuration.Any(c => c.Value == null))
+		if (configuration.Any(c => c.Value == null))
 		{
 			await Logging.Log(LogSeverity.Error, "Init",
-				$"Missing configuration values for: {Configuration.Aggregate("", (s, pair) => $"{s}, {pair.Key}")[2..]}");
+				$"Missing configuration values for: {configuration.Aggregate("", (s, pair) => $"{s}, {pair.Key}")[2..]}");
 			return;
 		}
 
-		await Logging.Log(LogSeverity.Info, "Init", $"Starting CloudflareDNS and Moonlight Service");
+		await Logging.Log(LogSeverity.Info, "Init", $"Starting {(_isMoonlight ? "Moonlight" : "Cloudflare")} Service");
 
 #pragma warning disable
-		CloudflareService.Run(Configuration);
-		MoonlightService.Run(Configuration);
+		if (_isMoonlight)
+			MoonlightService.Run(configuration);
+		else
+			CloudflareService.Run(configuration);
 #pragma warning restore
 
 		await Task.Delay(-1);

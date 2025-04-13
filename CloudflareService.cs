@@ -11,22 +11,30 @@ public static class CloudflareService
 {
 	private const int DnsAlreadyExists = 81058;
 
-	private static string? _apiKey;
+	private static string? _cfApiKey;
 	private static string? _zoneId;
+	private static string? _panelUrl;
+	private static string? _mlApiKey;
+
 	private static CloudFlareClient? _cloudFlareClient;
+
+	private static readonly List<Server> Servers = [];
 
 	public static async Task Run(Dictionary<string, string?> configuration)
 	{
-		configuration.TryGetValue("CLOUDFLAREAPIKEY", out _apiKey);
+		configuration.TryGetValue("CLOUDFLAREAPIKEY", out _cfApiKey);
 		configuration.TryGetValue("CLOUDFLAREZONEID", out _zoneId);
+		configuration.TryGetValue("MOONLIGHTAPIURL", out _panelUrl);
+		configuration.TryGetValue("MOONLIGHTAPIKEY", out _mlApiKey);
 
-		_cloudFlareClient = new CloudFlareClient(_apiKey);
+		_cloudFlareClient = new CloudFlareClient(_cfApiKey);
 
 		await Logging.Log(LogSeverity.Info, "Cloudflare", "Initialize");
 		var isValid = await CheckValidity();
 		if (!isValid)
 		{
-			await Logging.Log(LogSeverity.Error, "Cloudflare", "Could not verify Cloudflare configuration.");
+			await Logging.Log(LogSeverity.Error, "Cloudflare",
+				"Could not verify Cloudflare configuration. Terminating.");
 			return;
 		}
 
@@ -36,7 +44,7 @@ public static class CloudflareService
 
 	private static async Task<bool> CheckValidity()
 	{
-		if (_apiKey == null || _zoneId == null || _cloudFlareClient == null)
+		if (_cfApiKey == null || _zoneId == null || _cloudFlareClient == null)
 			return false;
 
 		var dnsRecord = new NewDnsRecord()
@@ -64,10 +72,12 @@ public static class CloudflareService
 				break;
 			}
 
-			if (serverCount == ServerManager.Servers.Count)
+			await UpdateServerList();
+
+			if (serverCount == Servers.Count)
 				continue;
 
-			foreach (var server in ServerManager.Servers)
+			foreach (var server in Servers)
 			{
 				var aRecordResult = await CreateARecord(server);
 				var srvRecordResult = await CreateSrvRecord(server);
@@ -96,8 +106,19 @@ public static class CloudflareService
 					$"Updated records for {server.Subdomain}.{server.Domain}");
 			}
 
-			serverCount = ServerManager.Servers.Count;
+			serverCount = Servers.Count;
 			await Task.Delay(30_000);
+		}
+	}
+
+	private static async Task UpdateServerList()
+	{
+		var response = await Api.Get(_panelUrl + "/servers", _mlApiKey);
+		if (response.IsSuccessStatusCode)
+		{
+			Servers.Clear();
+			var newServerList = await response.Content.ReadFromJsonAsync<List<Server>>();
+			Servers.AddRange(newServerList ?? []);
 		}
 	}
 
@@ -121,7 +142,7 @@ public static class CloudflareService
 
 		var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(srvRecord), Encoding.UTF8,
 			"application/json");
-		return await Api.Post($"https://api.cloudflare.com/client/v4/zones/{_zoneId}/dns_records", content, _apiKey);
+		return await Api.Post($"https://api.cloudflare.com/client/v4/zones/{_zoneId}/dns_records", content, _cfApiKey);
 	}
 
 	private static async Task<CloudFlareResult<DnsRecord>?> CreateARecord(Server server)
@@ -145,10 +166,10 @@ public static class CloudflareService
 
 internal class CreateSrvResponse
 {
-	public bool Success = false;
+	public bool Success;
 	public CloudFlareError[] Errors = [];
-	public object? Messages = null;
-	public object? Result = null;
+	public object? Messages;
+	public object? Result;
 }
 
 internal class CloudFlareError
