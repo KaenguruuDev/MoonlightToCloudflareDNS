@@ -10,6 +10,7 @@
     <ItemGroup>
       <PackageReference Include="CloudFlare.Client" Version="8.0.0" />
       <PackageReference Include="Docker.DotNet" Version="3.125.15" />
+      <PackageReference Include="Microsoft.AspNetCore.App" Version="2.2.8" />
     </ItemGroup>
 
 </Project>
