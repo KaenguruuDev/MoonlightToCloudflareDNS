@@ -72,6 +72,7 @@ public static class CloudflareService
 				break;
 			}
 
+			await Task.Delay(30_000);
 			await UpdateServerList();
 
 			if (serverCount == Servers.Count)
@@ -107,7 +108,6 @@ public static class CloudflareService
 			}
 
 			serverCount = Servers.Count;
-			await Task.Delay(30_000);
 		}
 	}
 
