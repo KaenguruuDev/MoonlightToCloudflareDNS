@@ -130,7 +130,7 @@ public static class CloudflareService
 			name = $"_minecraft._tcp.{server.Subdomain}",
 			data = new
 			{
-				priority = 10,
+				priority = 0,
 				weight = 5,
 				port = server.Port.ToString(),
 				target = $"{server.Subdomain}.{server.Domain}"
