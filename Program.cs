@@ -1,33 +1,33 @@
-﻿using System.Reflection;
+﻿namespace MoonlightToCloudflareDNS;
 
-namespace MoonlightToCloudflareDNS;
-
-class Program
+internal abstract class Program
 {
 	private static bool _isMoonlight;
 
 	// Usage: ./MTCF path/to/.env moonlight/cloudflare
 	private static async Task Main(string[] args)
 	{
-		if (args.Length < 2)
-		{
-			await Logging.Log(LogSeverity.Error, "Init", "Missing configuration file or application mode.");
+		if (!await CheckParameters(args))
 			return;
-		}
 
-		if (!File.Exists(args[0]))
-		{
-			await Logging.Log(LogSeverity.Error, "Init", "File not found: " + args[0]);
+		var configuration = await CheckConfiguration(args);
+		if (configuration is null)
 			return;
-		}
 
-		if (args[1] != "cloudflare" && args[1] != "moonlight")
-		{
-			await Logging.Log(LogSeverity.Error, "Init",
-				$"Mode '{args[1]}' not supported. Use 'moonlight' or 'cloudflare'");
-			return;
-		}
+		await Logging.Log(LogSeverity.Info, "Init", $"Starting {(_isMoonlight ? "Moonlight" : "Cloudflare")} Service");
 
+#pragma warning disable
+		if (_isMoonlight)
+			MoonlightService.Run(configuration);
+		else
+			CloudflareService.Run(configuration);
+#pragma warning restore
+
+		await Task.Delay(-1);
+	}
+
+	private static async Task<Dictionary<string, string?>?> CheckConfiguration(string[] args)
+	{
 		var configuration = new Dictionary<string, string?>();
 
 		if (args[1] == "cloudflare")
@@ -59,22 +59,34 @@ class Program
 			configuration[identifier] = value;
 		}
 
-		if (configuration.Any(c => c.Value == null))
+		if (configuration.All(c => c.Value != null)) return configuration;
+
+		await Logging.Log(LogSeverity.Error, "Init",
+			$"Missing configuration values for: {configuration.Aggregate("", (s, pair) => $"{s}, {pair.Key}")[2..]}");
+		return null;
+	}
+
+	private static async Task<bool> CheckParameters(string[] args)
+	{
+		if (args.Length < 2)
 		{
-			await Logging.Log(LogSeverity.Error, "Init",
-				$"Missing configuration values for: {configuration.Aggregate("", (s, pair) => $"{s}, {pair.Key}")[2..]}");
-			return;
+			await Logging.Log(LogSeverity.Error, "Init", "Missing configuration file or application mode.");
+			return false;
 		}
 
-		await Logging.Log(LogSeverity.Info, "Init", $"Starting {(_isMoonlight ? "Moonlight" : "Cloudflare")} Service");
+		if (!File.Exists(args[0]))
+		{
+			await Logging.Log(LogSeverity.Error, "Init", "File not found: " + args[0]);
+			return false;
+		}
 
-#pragma warning disable
-		if (_isMoonlight)
-			MoonlightService.Run(configuration);
-		else
-			CloudflareService.Run(configuration);
-#pragma warning restore
+		if (args[1] != "cloudflare" && args[1] != "moonlight")
+		{
+			await Logging.Log(LogSeverity.Error, "Init",
+				$"Mode '{args[1]}' not supported. Use 'moonlight' or 'cloudflare'");
+			return false;
+		}
 
-		await Task.Delay(-1);
+		return true;
 	}
 }

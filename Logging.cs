@@ -36,7 +36,7 @@ public static class Logging
 		AppDomain.CurrentDomain.ProcessExit += (sender, e) => OnExit();
 
 #pragma warning disable
-		Log(LogSeverity.Info, "Logging", $"{DateTime.Now}");
+		Log(LogSeverity.Info, "Logging", $"{DateTime.Now:dd/MM/yyyy HH:mm:ss}");
 		Log(LogSeverity.Info, "Logging", "Initialize");
 #pragma warning restore
 	}
@@ -81,7 +81,7 @@ public static class Logging
 	}
 
 	private static string GetLogTimeStamp() =>
-		$"{DateTime.Now.Hour:D2}:{DateTime.Now.Minute:D2}:{DateTime.Now.Second:D2}";
+		$"[{DateTime.Now.Hour:D2}:{DateTime.Now.Minute:D2}:{DateTime.Now.Second:D2}]";
 
 	private static string GetLogFileName(DateTime time) =>
 		$"{time.Year:D4}-{time.Month:D2}-{time.Day:D2}T{time.AddHours(1).Hour:D2}-{time.Minute:D2}-{time.Second:D2}";

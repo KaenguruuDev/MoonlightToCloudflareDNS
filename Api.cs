@@ -4,7 +4,7 @@ namespace MoonlightToCloudflareDNS;
 
 public static class Api
 {
-	private static readonly HttpClient Client = new HttpClient();
+	private static readonly HttpClient Client = new();
 
 	public static async Task<HttpResponseMessage> Get(string url, string? apiKey = null)
 	{

@@ -64,51 +64,50 @@ public static class CloudflareService
 	private static async Task MonitorForChanges()
 	{
 		var serverCount = 0;
-		while (true)
+		while (_cloudFlareClient == null)
 		{
-			if (_cloudFlareClient == null)
-			{
-				await Logging.Log(LogSeverity.Error, "CF/Monitor", "CloudFlareClient is null. Terminating.");
-				break;
-			}
-
-			await Task.Delay(30_000);
+			await Task.Delay(TimeSpan.FromSeconds(30));
 			await UpdateServerList();
 
 			if (serverCount == Servers.Count)
 				continue;
 
 			foreach (var server in Servers)
-			{
-				var aRecordResult = await CreateARecord(server);
-				var srvRecordResult = await CreateSrvRecord(server);
-
-				if (!(aRecordResult?.Success ?? false) &&
-				    !(aRecordResult?.Errors.Count == 1 && aRecordResult.Errors[0].Code == DnsAlreadyExists))
-				{
-					await Logging.Log(LogSeverity.Warning, "CF/Monitor",
-						$"Could not create A Record for: {server.Subdomain}.{server.Domain} [{aRecordResult?.Errors.Aggregate("", (s, error) => $"{s}, {error.Code}")[2..]}]");
-					continue;
-				}
-
-				var errorResponse = !srvRecordResult.IsSuccessStatusCode
-					? await srvRecordResult.Content.ReadFromJsonAsync<CreateSrvResponse>()
-					: null;
-
-				if (!srvRecordResult.IsSuccessStatusCode &&
-				    errorResponse is not { Errors: [{ Code: DnsAlreadyExists }] })
-				{
-					await Logging.Log(LogSeverity.Error, "CF/Monitor",
-						$"Could not create SRV Record for: {server.Subdomain}.{server.Domain} [{errorResponse?.Errors.Aggregate("", (s, error) => $"{s}, {error.Code}")[2..]}]");
-					continue;
-				}
-
-				await Logging.Log(LogSeverity.Info, "CF/Monitor",
-					$"Updated records for {server.Subdomain}.{server.Domain}");
-			}
+				await UpdateServer(server);
 
 			serverCount = Servers.Count;
 		}
+
+		await Logging.Log(LogSeverity.Error, "CF/Monitor", "CloudFlareClient is null. Terminating.");
+	}
+
+	private static async Task UpdateServer(Server server)
+	{
+		var aRecordResult = await CreateARecord(server);
+		var srvRecordResult = await CreateSrvRecord(server);
+
+		if (!(aRecordResult?.Success ?? false) &&
+		    !(aRecordResult?.Errors.Count == 1 && aRecordResult.Errors[0].Code == DnsAlreadyExists))
+		{
+			await Logging.Log(LogSeverity.Warning, "CF/Monitor",
+				$"Could not create A Record for: {server.Subdomain}.{server.Domain} [{aRecordResult?.Errors.Aggregate("", (s, error) => $"{s}, {error.Code}")[2..]}]");
+			return;
+		}
+
+		var errorResponse = !srvRecordResult.IsSuccessStatusCode
+			? await srvRecordResult.Content.ReadFromJsonAsync<CreateSrvResponse>()
+			: null;
+
+		if (!srvRecordResult.IsSuccessStatusCode &&
+		    errorResponse is not { Errors: [{ Code: DnsAlreadyExists }] })
+		{
+			await Logging.Log(LogSeverity.Error, "CF/Monitor",
+				$"Could not create SRV Record for: {server.Subdomain}.{server.Domain} [{errorResponse?.Errors?.Aggregate("", (s, error) => $"{s}, {error.Code}")[2..]}]");
+			return;
+		}
+
+		await Logging.Log(LogSeverity.Info, "CF/Monitor",
+			$"Updated records for {server.Subdomain}.{server.Domain}");
 	}
 
 	private static async Task UpdateServerList()
@@ -162,18 +161,16 @@ public static class CloudflareService
 
 		return await _cloudFlareClient.Zones.DnsRecords.AddAsync(_zoneId, aRecord);
 	}
-}
 
-internal class CreateSrvResponse
-{
-	public bool Success;
-	public CloudFlareError[] Errors = [];
-	public object? Messages;
-	public object? Result;
-}
+	private abstract record CreateSrvResponse(
+		bool Success,
+		CloudFlareError[]? Errors = null,
+		object? Messages = null,
+		object? Result = null
+	);
 
-internal class CloudFlareError
-{
-	public int Code = 0;
-	public string? Message = null;
+	private abstract record CloudFlareError(
+		int Code = 0,
+		string? Message = null
+	);
 }
