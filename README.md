@@ -29,7 +29,9 @@ Adds/Removes A/AAAA and SRV records for individual servers.
 Fetches the configuration of any active servers.
 > [!NOTE]
 > Unfortunately, the **V1** Version of Moonlight **does not** currently support an actual API. That means that currently, this script is getting the data from Docker.
+>
 > That means that for this to work, we rely on users to create a dns.json file in the server directory (see "Setup" below), which introduces the risk of users changing these without knowing what they're doing.
+>
 > Once **V2** of Moonlight releases and we are able to access it, this script will be updated to follow a different configuration workflow which does not rely on the user entering important information (such as IP address etc.)
 
 
@@ -74,5 +76,7 @@ This configuration will cause the script to create SRV and A records that allow 
 
 1. With Moonlight V2
 > Use Moonlight API instead of Docker to get list of servers
+>
 > Only allow the users who create a server to specify the subdomain, the rest will be automatically read from the API
+
 2. Allow more configuration for the script setup
